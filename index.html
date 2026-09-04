@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="af"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WerkLink SA — Online Starter</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f5f7f9;color:#14212b}.wrap{max-width:900px;margin:auto;padding:20px}header{background:#0f3d5e;color:white;padding:24px}.card{background:white;border:1px solid #dde4ea;border-radius:15px;padding:18px;margin:14px 0}input,select,textarea{width:100%;padding:11px;margin:5px 0 12px;border:1px solid #ccd5dd;border-radius:9px;box-sizing:border-box}button{padding:11px 15px;border:0;border-radius:9px;background:#168a4b;color:white;font-weight:bold;cursor:pointer}.muted{color:#667085}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}.tag{background:#e8f5ed;padding:4px 7px;border-radius:20px;font-size:12px}
+</style></head><body><header><div class="wrap"><h1>WerkLink SA 🇿🇦</h1><div>Online platform starter</div></div></header><main class="wrap">
+<div class="card"><h2>1. Konfigureer jou databasis</h2><p class="muted">Maak eers ’n Supabase-projek en voer <b>supabase/schema.sql</b> in die SQL Editor uit.</p>
+<label>Supabase Project URL</label><input id="url" placeholder="https://jouprojek.supabase.co">
+<label>Supabase Publishable/Anon Key</label><input id="key" placeholder="sb_publishable_...">
+<button onclick="connect()">Koppel</button><span id="status"></span></div>
+
+<div class="grid"><div class="card"><h2>Registreer</h2><label>E-pos</label><input id="email"><label>Wagwoord</label><input id="pass" type="password"><label>Naam / Besigheid</label><input id="name"><label>Rol</label><select id="role"><option value="worker">Werksoeker</option><option value="business">Besigheid</option></select><label>Area</label><input id="area"><label>Foon</label><input id="phone"><button onclick="signup()">Registreer</button></div>
+<div class="card"><h2>Teken in</h2><label>E-pos</label><input id="loginEmail"><label>Wagwoord</label><input id="loginPass" type="password"><button onclick="login()">Teken in</button><button style="margin-left:8px;background:#334155" onclick="logout()">Teken uit</button><p id="user" class="muted"></p></div></div>
+
+<div class="card"><h2>Werkposte</h2><input id="search" placeholder="Soek poste..." oninput="loadJobs()"><div id="jobs"></div></div>
+<div class="card"><h2>Plaas ’n werk</h2><label>Titel</label><input id="jt"><label>Kategorie</label><input id="jc"><label>Werksoort</label><select id="jtype"><option>Dagwerk</option><option>Deeltyds</option><option>Voltyds</option><option>Kontrak</option></select><label>Area</label><input id="ja"><label>Betaling</label><input id="jp"><label>Beskrywing</label><textarea id="jd"></textarea><label>Kontakfoon</label><input id="jphone"><button onclick="postJob()">Plaas werk</button></div>
+</main>
+<script>
+let client=null, session=null;
+function connect(){const u=document.getElementById('url').value.trim(),k=document.getElementById('key').value.trim();if(!u||!k)return alert('Vul jou Supabase URL en publishable/anon key in.');client=supabase.createClient(u,k);status.textContent=' Gekoppel.';client.auth.onAuthStateChange((_e,s)=>{session=s;user.textContent=s?'Ingeteken as '+s.user.email:'Nie ingeteken nie';loadJobs()});loadJobs()}
+async function signup(){if(!client)return alert('Koppel eers Supabase.');const {data,error}=await client.auth.signUp({email:email.value,password:pass.value});if(error)return alert(error.message);if(data.user){const {error:e}=await client.from('profiles').insert({id:data.user.id,role:role.value,full_name:name.value,area:area.value,phone:phone.value});if(e)alert(e.message);else alert('Registrasie suksesvol. Kyk na jou e-pos as bevestiging vereis word.')}}
+async function login(){if(!client)return alert('Koppel eers Supabase.');const {error}=await client.auth.signInWithPassword({email:loginEmail.value,password:loginPass.value});if(error)alert(error.message)}
+async function logout(){if(client)await client.auth.signOut()}
+async function loadJobs(){if(!client){jobs.innerHTML='<p class="muted">Koppel Supabase om regte poste te laai.</p>';return}let q=search.value.trim();let query=client.from('jobs').select('*').eq('status','open').order('created_at',{ascending:false});if(q)query=query.or(`title.ilike.%${q}%,area.ilike.%${q}%,category.ilike.%${q}%`);const {data,error}=await query;if(error)return jobs.textContent=error.message;jobs.innerHTML=data.map(j=>`<div class="card"><h3>${esc(j.title)}</h3><span class="tag">${esc(j.category)}</span> <span class="tag">${esc(j.work_type)}</span><p>📍 ${esc(j.area)} · ${esc(j.pay||'Bespreekbaar')}</p><p>${esc(j.description)}</p>${j.contact_phone?`<a target="_blank" href="https://wa.me/${wa(j.contact_phone)}?text=${encodeURIComponent('Hallo, ek stel belang in die WerkLink SA-pos: '+j.title)}"><button>WhatsApp</button></a>`:''}</div>`).join('')||'<p>Geen poste nie.</p>'}
+async function postJob(){if(!session)return alert('Teken eers in.');const {error}=await client.from('jobs').insert({business_id:session.user.id,title:jt.value,category:jc.value,work_type:jtype.value,area:ja.value,pay:jp.value,description:jd.value,contact_phone:jphone.value});if(error)alert(error.message);else{alert('Werk geplaas.');loadJobs()}}
+function wa(s){let n=String(s).replace(/\D/g,'');return n.startsWith('0')?'27'+n.slice(1):n}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+</script></body></html>
